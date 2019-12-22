@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import os
 
-video_dir = "../videos"
+video_dir = "../../SchoolVideos"
 output_dir = "../data/images"
 
 def split_frame_num(frame: np.ndarray, row_nums: int, col_nums: int):
@@ -38,11 +38,11 @@ def split_frame_size(frame: np.ndarray, cell_rows: int, cell_cols: int):
                           (cell_cols * c + cell_cols + bias_col, cell_rows * r + cell_rows + bias_row)))
             imgs.append(frame[cell_rows * r + bias_row: cell_rows * r + cell_rows + bias_row,
                         cell_cols * c + bias_col: cell_cols * c + cell_cols + bias_col])
-            if c != col_nums - 1 and r != row_nums - 1:
-                rects.append(((cell_cols * c + bias_col + cell_cols // 2, cell_rows * r + bias_row + cell_rows //2),
-                              (cell_cols * c + cell_cols + bias_col + cell_cols // 2, cell_rows * r + cell_rows + bias_row + cell_rows // 2)))
-                imgs.append(frame[cell_rows * r + bias_row + cell_rows // 2: cell_rows * r + cell_rows + bias_row + cell_rows // 2,
-                            cell_cols * c + bias_col + cell_cols // 2: cell_cols * c + cell_cols + bias_col + cell_cols // 2])
+            # if c != col_nums - 1 and r != row_nums - 1:
+            #     rects.append(((cell_cols * c + bias_col + cell_cols // 2, cell_rows * r + bias_row + cell_rows //2),
+            #                   (cell_cols * c + cell_cols + bias_col + cell_cols // 2, cell_rows * r + cell_rows + bias_row + cell_rows // 2)))
+            #     imgs.append(frame[cell_rows * r + bias_row + cell_rows // 2: cell_rows * r + cell_rows + bias_row + cell_rows // 2,
+            #                 cell_cols * c + bias_col + cell_cols // 2: cell_cols * c + cell_cols + bias_col + cell_cols // 2])
 
     return imgs, rects
 

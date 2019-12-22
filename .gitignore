@@ -1,2 +1,7 @@
 /SignDetection/videos/
 /SignDetection/data/images/
+/SignDetection/data/train/
+/SignDetection/data/val/
+/SignDetection/data/
+/SignDetection/scripts/shufflenet_v2_0_5_best_weights.pth
+/SignDetection/scripts/checkpoint.pth
