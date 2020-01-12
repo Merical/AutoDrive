@@ -4,7 +4,9 @@ import os
 import time
 from SignDetection.scripts.SignDetectionPack.models import *
 
-video_dir = "../../SchoolVideos"
+os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+
+video_dir = "../videos"
 output_dir = "../data/images"
 
 def split_frame_num(frame: np.ndarray, row_nums: int, col_nums: int):
@@ -74,10 +76,12 @@ if not os.path.exists(output_dir):
 
 # detector = SignDetector("best_weights_1208.pth", with_gpu=True)
 detector = SignDetector("shufflenet_v2_0_5_best_weights.pth", with_gpu=True)
+fourcc = cv2.VideoWriter_fourcc(*'XVID')
 
 for v in videos :
     print('Processing video: {}'.format(v))
     cap = cv2.VideoCapture(os.path.join(video_dir, v))
+    out = cv2.VideoWriter('output.avi', fourcc, 20.0, (1920, 1080), True)
     # cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     # cap.set(cv2.CAP_PROP_FRAME_WIDTH, 480)
     ret, frame = cap.read()
@@ -106,10 +110,14 @@ for v in videos :
             #     cv2.rectangle(frame, rects[i][0], rects[i][1], (0, 0, 255), thickness=2)
 
         cv2.imshow('Frame', frame)
+        out.write(frame)
         key = cv2.waitKey(20)
         if key == ord('q'):
-            exit(0)
+            break
 
         ret, frame = cap.read()
 
     break
+cap.release()
+out.release()
+cv2.destroyAllWindows()

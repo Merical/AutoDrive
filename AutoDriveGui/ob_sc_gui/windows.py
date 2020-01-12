@@ -11,7 +11,7 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(QIcon("oceanbotech.png"))
 
         self.setGeometry(300, 300, 300, 200)
-        self.setFixedWidth(1200)
+        self.setFixedWidth(1500)
         self.setFixedHeight(481)
 
         exitAction = QAction(QIcon('heart256.ico'), '&Exit', self)
@@ -29,8 +29,14 @@ class MainWindow(QMainWindow):
 
     def restart(self):
         del self.mode
+        self.set_size(1500, 481)
         self.mode = Mode(self)
         self.setCentralWidget(self.mode)
+        self.show()
+
+    def set_size(self, width, height):
+        self.setFixedWidth(width)
+        self.setFixedHeight(height)
         self.show()
 
 class Mode(QWidget):
@@ -63,25 +69,39 @@ class Mode(QWidget):
         layout.addWidget(self.button_ad)
         self.button_ad.clicked.connect(self.mode_ad_on_click)
 
+        self.button_rf = QtWidgets.QPushButton(u'Road Follow')
+        self.button_rf.setBaseSize(120, 200)
+        self.button_rf.setMinimumSize(120, 200)
+        layout.addWidget(self.button_rf)
+        self.button_rf.clicked.connect(self.mode_rf_on_click)
+
         self.setLayout(layout)
         self.show()
 
     def mode_pad_on_click(self):
         self.mode = "pad"
         self.mainWindow.setCentralWidget(Window_pad(self.mainWindow))
+        self.mainWindow.set_size(901, 481)
 
     def mode_ros_on_click(self):
         self.mode = "ros"
         self.mainWindow.setCentralWidget(Window_ros(self.mainWindow))
+        self.mainWindow.set_size(901, 481)
 
     def mode_dl_on_click(self):
         self.mode = "dl"
         self.mainWindow.setCentralWidget(Window_dl(self.mainWindow))
+        self.mainWindow.set_size(901, 481)
 
     def mode_ad_on_click(self):
         self.mode = "ad"
         self.mainWindow.setCentralWidget(Window_ad(self.mainWindow))
+        self.mainWindow.set_size(901, 481)
 
+    def mode_rf_on_click(self):
+        self.mode = "rf"
+        self.mainWindow.setCentralWidget(Window_rf(self.mainWindow))
+        self.mainWindow.set_size(901, 481)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

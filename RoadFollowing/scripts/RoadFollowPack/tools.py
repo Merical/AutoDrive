@@ -21,7 +21,6 @@ def train(train_loader, model, criterion, optimizer, epoch, cuda):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
-    top1 = AverageMeter()
 
     # switch to train mode
     model.train()
@@ -43,14 +42,9 @@ def train(train_loader, model, criterion, optimizer, epoch, cuda):
         if isinstance(output, tuple):
             loss = sum((criterion(o,target_var) for o in output))
             # print (output)
-            for o in output:
-                prec1 = accuracy(o.data, target, topk=(1,))
-                top1.update(prec1[0], input.size(0))
             losses.update(loss.data.item(), input.size(0)*len(output))
         else:
             loss = criterion(output, target_var)
-            prec1 = accuracy(output.data, target, topk=(1,))
-            top1.update(prec1[0], input.size(0))
             losses.update(loss.data.item(), input.size(0))
 
         # compute gradient and do SGD step
@@ -67,22 +61,15 @@ def train(train_loader, model, criterion, optimizer, epoch, cuda):
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                  'Prec@1 {top1_val} ({top1_avg})'.format(
+                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
                    epoch, i, len(train_loader), batch_time=batch_time,
-                   data_time=data_time, loss=losses,
-                   top1_val=numpy.asscalar(top1.val.cpu().numpy()),
-                   top1_avg=numpy.asscalar(top1.avg.cpu().numpy())))
-
-    return losses.avg, top1.avg
+                   data_time=data_time, loss=losses))
 
 
 def validate(val_loader, model, criterion, cuda):
     """Validate the model on Validation Set"""
     batch_time = AverageMeter()
     losses = AverageMeter()
-    top1 = AverageMeter()
-    top5 = AverageMeter()
 
     # switch to evaluate mode
     model.eval()
@@ -92,25 +79,20 @@ def validate(val_loader, model, criterion, cuda):
     for i, (input, target) in enumerate(val_loader):
         if cuda:
             input, target = input.cuda(async=True), target.cuda(async=True)
-        input_var = torch.autograd.Variable(input, volatile=True)
-        target_var = torch.autograd.Variable(target, volatile=True)
+        with torch.no_grad():
+            input_var = torch.autograd.Variable(input)
+            target_var = torch.autograd.Variable(target)
 
         # compute output
         output = model(input_var)
         # print ("Output: ", output)
-        #topk = (1,5) if labels >= 100 else (1,) # TODO: add more topk evaluation
         # For nets that have multiple outputs such as Inception
         if isinstance(output, tuple):
             loss = sum((criterion(o,target_var) for o in output))
             # print (output)
-            for o in output:
-                prec1 = accuracy(o.data, target, topk=(1,))
-                top1.update(prec1[0], input.size(0))
             losses.update(loss.data.item(), input.size(0)*len(output))
         else:
             loss = criterion(output, target_var)
-            prec1 = accuracy(output.data, target, topk=(1,))
-            top1.update(prec1[0], input.size(0))
             losses.update(loss.data.item(), input.size(0))
 
         # measure elapsed time
@@ -121,16 +103,11 @@ def validate(val_loader, model, criterion, cuda):
         if i % 20 == 0:
             print('Test: [{0}/{1}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                  'Prec@1 {top1_val} ({top1_avg})'.format(
+                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
                    i, len(val_loader), batch_time=batch_time,
-                   loss=losses,
-                   top1_val=numpy.asscalar(top1.val.cpu().numpy()),
-                   top1_avg=numpy.asscalar(top1.avg.cpu().numpy())))
+                   loss=losses))
 
-    print(' * Prec@1 {top1}'
-          .format(top1=numpy.asscalar(top1.avg.cpu().numpy())))
-    return losses.avg, top1.avg
+    return losses.avg
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""

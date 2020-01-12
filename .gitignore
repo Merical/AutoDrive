@@ -5,3 +5,10 @@
 /SignDetection/data/
 /SignDetection/scripts/shufflenet_v2_0_5_best_weights.pth
 /SignDetection/scripts/checkpoint.pth
+/RoadFollowing/dataset/
+/RoadFollowing/dataset_output/
+/RoadFollowing/logs/
+/RoadFollowing/weights/
+/RoadFollowing/dataset_xy_224_2020-1-5.zip
+/RoadFollowing/road_following_dataset_xy_2019-12-08_23-23-12.zip
+/SignDetection/logs/

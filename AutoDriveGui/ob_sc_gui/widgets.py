@@ -14,14 +14,16 @@ import numpy as np
 from imutils.video.webcamvideostream import WebcamVideoStream
 from ob_sc_gui.models import *
 from SignDetection.scripts.SignDetectionPack.models import *
+from RoadFollowing.scripts.RoadFollowPack.models import *
 
-Debug_flag = True
-Debug_Send_flag = True
+Debug_flag = False
+Debug_Send_flag = False
 Debug_Key_flag = False
 Debug_video = False
 Debug_track = False
 Debug_cmt = False
 Debug_ros = False
+Debug_visual_track = True
 
 ONLINE_MODE = True
 command_queue = queue.Queue()
@@ -548,6 +550,315 @@ class UpdateData(ThreadTemplate):
                     continue
 # --------------------------------------------------------Pad End Here------------------------------------------------- #
 
+# ----------------------------------------------------RoadFollow Start Here--------------------------------------------- #
+
+class Window_rf(QWidget):
+    def __init__(self, mainWindow):
+        super().__init__()
+
+        if not ONLINE_MODE:
+            self.sock = 0
+
+        self.mainWindow = mainWindow
+        self.update_thread = UpdateData()
+        # self.video_thread = VideoData()
+        self.video_thread = VideoThread(ROV_CAMERA_IP_ADDR)
+        self.track_thread = VisualTrackThread(self.video_thread)
+        self.cam_show_flag = True
+        self.track_mode = False
+        self.connected = False
+        self.initUI()
+
+    def initUI(self):
+
+        main_layout = QtWidgets.QHBoxLayout()
+        fun_button = QtWidgets.QVBoxLayout()
+        socket_layout = QtWidgets.QHBoxLayout()
+        self.data_table = self.get_data_table()
+
+        # camera_layout = QtWidgets.QVBoxLayout()
+
+        self.label_show_camera = QtWidgets.QLabel()
+        self.label_show_camera.setMinimumSize(641, 481)
+        self.label_show_camera.setBaseSize(641, 481)
+        self.label_show_camera.setAutoFillBackground(False)
+
+        self.button_connect_robot = QtWidgets.QPushButton(u'Connect Robot')
+        self.button_connect_robot.setBaseSize(120, 30)
+        socket_layout.addWidget(self.button_connect_robot)
+        self.button_connect_robot.clicked.connect(self.connect_socket_on_click)
+
+        self.text_ip_address = QtWidgets.QLineEdit()
+        # self.text_ip_address.setText('127.0.0.1')
+        self.text_ip_address.setText('192.168.10.200')
+        self.text_ip_address.setBaseSize(200, 30)
+        socket_layout.addWidget(self.text_ip_address)
+
+        fun_button.addLayout(socket_layout)
+
+        self.button_open_camera = QtWidgets.QPushButton(u'Open Camera')
+        self.button_open_camera.setBaseSize(120, 50)
+        fun_button.addWidget(self.button_open_camera)
+        self.button_open_camera.clicked.connect(self.open_camera_on_click)
+
+        self.button_open_track = QtWidgets.QPushButton(u'Open Track')
+        self.button_open_track.setBaseSize(120, 50)
+        fun_button.addWidget(self.button_open_track)
+        self.button_open_track.clicked.connect(self.open_track_on_click)
+
+        button_close = QtWidgets.QPushButton(u'Quit')
+        button_close.setBaseSize(120, 50)
+        fun_button.addWidget(button_close)
+        button_close.clicked.connect(self.quit_to_mainWindow_on_click)
+
+        fun_button.addWidget(self.data_table)
+
+        main_layout.addLayout(fun_button)
+        main_layout.addWidget(self.label_show_camera)
+        self.setLayout(main_layout)
+        self.update_thread.update_date.connect(self.update_item_data)
+        self.video_thread.frame_data.connect(self.show_img)
+
+        self.show()
+        print('GUI initiated')
+
+    def quit_to_mainWindow_on_click(self):
+        self.close()
+        self.mainWindow.restart()
+
+
+    def get_data_table(self):
+        data_table = QtWidgets.QTableWidget()
+        data_table.setMaximumSize(300, 400)
+        data_table.setColumnCount(1)
+        data_table.setRowCount(8)
+        col_name = [
+            'Data',
+
+        ]
+        data_table.setHorizontalHeaderLabels(col_name)
+        row_name = [
+            'GER',
+            'PID',
+            'SONA1',
+            'SONA3',
+            'SONA5',
+            'SONA7',
+            'SONA8',
+            'TRACK_SENSOR',
+        ]
+        data_table.setVerticalHeaderLabels(row_name)
+        return data_table
+
+    def update_item_data(self, x,y,z,a,b,c,d,e):
+        self.data_table.setItem(0, 0, QTableWidgetItem(x))
+        self.data_table.setItem(1, 0, QTableWidgetItem(y))
+        self.data_table.setItem(2, 0, QTableWidgetItem(z))
+        self.data_table.setItem(3, 0, QTableWidgetItem(a))
+        self.data_table.setItem(4, 0, QTableWidgetItem(b))
+        self.data_table.setItem(5, 0, QTableWidgetItem(c))
+        self.data_table.setItem(6, 0, QTableWidgetItem(d))
+        self.data_table.setItem(7, 0, QTableWidgetItem(e))
+
+    def keyPressEvent(self, event):
+        if not self.track_mode:
+            key = event.key()
+            if Debug_Key_flag: print("pressed:" + str(key))
+            if key == Qt.Key_Escape:
+                self.close()
+            elif key == Qt.Key_S:
+                command_queue.put('command_type:0')  # stop
+            elif key == Qt.Key_W:
+                command_queue.put('command_type:1')  # forward
+            elif key == Qt.Key_X:
+                command_queue.put('command_type:2')  # backward
+            elif key == Qt.Key_D:
+                command_queue.put('command_type:3')  # right
+            elif key == Qt.Key_A:
+                command_queue.put('command_type:4')  # left
+            elif key == Qt.Key_E:
+                command_queue.put('command_type:5')  # forward right
+            elif key == Qt.Key_Q:
+                command_queue.put('command_type:6')  # forward left
+            elif key == Qt.Key_C:
+                command_queue.put('command_type:7')  # back right
+            elif key == Qt.Key_Z:
+                command_queue.put('command_type:8')  # back left
+            elif key == Qt.Key_L:
+                command_queue.put('command_type:9')  # turn right
+            elif key == Qt.Key_J:
+                command_queue.put('command_type:10')  # turn left
+            elif key == Qt.Key_U:
+                command_queue.put('command_type:11')  # turn right & forward
+            elif key == Qt.Key_O:
+                command_queue.put('command_type:12')  # turn left & forward
+        else:
+            pass
+
+
+    def keyReleaseEvent(self, a0: QtGui.QKeyEvent):
+        if not self.track_mode:
+            command_queue.put('command_type:0')
+        else:
+            pass
+
+    def open_camera_on_click(self):
+        if Debug_video: print('LCH: open_camera initiated.')
+        if self.connected:
+            if self.cam_show_flag:
+                self.video_thread.start()
+                self.video_thread.cam_timer.start(30)
+                self.button_open_camera.setText(u'Close Camera')
+                self.cam_show_flag = False
+            else:
+                if Debug_video: print('LCH: open_camera_on_click: 5')
+                self.video_thread.cam_timer.stop()
+                self.cam_show_flag = True
+                self.video_thread.quit()
+                # self.video_thread.wait()
+                self.label_show_camera.clear()
+                self.button_open_camera.setText(u'Open Camera')
+        else:
+            pass
+
+    def open_track_on_click(self):
+        if Debug_track: print('LCH: open_track initiated.')
+        if self.connected:
+            if self.track_mode:
+                self.track_mode = False
+                self.track_thread.disableTrack()
+                self.track_thread.quit()
+                self.button_open_track.setText(u'Open Track')
+                # time.sleep(2)
+                self.track_thread.setSpeed(100)
+                # [command_queue.put('command_type:21') for _ in range(3)]
+
+            else:
+                # [command_queue.put('command_type:20') for _ in range(3)]
+                self.track_mode = True
+                self.track_thread.enableTrack()
+                self.track_thread.start()
+                self.track_thread.setSpeed(30)  # set the track mode basic speed to 30
+                self.button_open_track.setText(u'Close Track')
+
+
+    def show_img(self, frame):
+        if Debug_video: print('LCH: Main thread show img.')
+        showImage = QtGui.QImage(frame.data, frame.shape[1], frame.shape[0], QtGui.QImage.Format_RGB888)
+        self.label_show_camera.setPixmap(QtGui.QPixmap.fromImage(showImage))
+
+    def connect_socket_on_click(self):
+        global ONLINE_MODE
+        if not self.connected:
+            ip_address = self.text_ip_address.text()
+            if ip_address == '127.0.0.1':
+                self.sock = 0
+                ONLINE_MODE = False
+            else:
+                self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # 创建一个socket
+                self.sock.connect((ip_address, 8899))  # 建立连接
+                ONLINE_MODE = True
+
+            print('LCH: the sock is set')
+
+            self.update_thread.setSock(self.sock)
+            self.track_thread.setSock(self.sock)
+            self.video_thread.setSock(self.sock)
+
+            self.update_thread.start()
+            self.track_thread.start()
+            self.button_connect_robot.setText(u'Disconnect Robot')
+
+            self.connected = True
+
+        else:
+            self.track_thread.disable()
+            self.track_thread.quit()
+            self.track_thread.wait()
+
+            self.update_thread.disable()
+            self.update_thread.quit()
+            self.update_thread.wait()
+
+            self.video_thread.disable()
+            self.video_thread.quit()
+            self.video_thread.wait()
+
+            del self.track_thread
+            del self.update_thread
+            del self.video_thread
+
+            print('LCH: delete done')
+
+            self.update_thread = UpdateData()
+            self.video_thread = VideoThread(ROV_CAMERA_IP_ADDR)
+            self.track_thread = VisualTrackThread(self.video_thread)
+
+            self.update_thread.update_date.connect(self.update_item_data)
+            self.video_thread.frame_data.connect(self.show_img)
+
+            self.button_connect_robot.setText(u'Connect Robot')
+            self.connected = False
+
+
+class VisualTrackThread(ThreadTemplate):
+    def __init__(self, video_thread):
+        super(VisualTrackThread, self).__init__()
+        self.track = False
+        self.video_thread = video_thread
+        self.road_detector = RoadDetector("roadFollower_shufflenet_v2_0_5_best_weight.pth", with_gpu=True)
+        self.angle = 0.0
+        self.angle_last = 0.0
+        self.liner_speed = 0
+        self.angle_speed = 0
+        self.angle_kp = 500.0
+        # self.angle_ki = 0.0
+        self.angle_kd = 5.0
+        self.angle_pid = 0.0
+
+    def run(self):
+        if Debug_visual_track: print('LCH in Visual Tracking: Visual Track thread begin ...')
+        while self.working:
+            if self.sock:
+                if self.track:
+                    image = self.video_thread.get_frame()
+                    if len(image.shape) < 3:
+                        continue
+                    if Debug_visual_track: print("LCH in Visual Tracking: got frame")
+                    self.angle = self.road_detector.detect(image)
+                    if Debug_visual_track: print("LCH in Visual Tracking: the angle ", self.angle)
+                    self.angle_pid = self.angle_kp * self.angle + (self.angle_last - self.angle) * self.angle_kd
+                    self.angle_pid = -self.angle_pid
+                    if Debug_visual_track: print("LCH in Visual Tracking: the angle pid is ", self.angle_pid)
+                    send_message, stop_ret = self.analyze_json()
+                    if Debug_Send_flag: print("LCH in Visual Tracking: the send_message is: ", send_message)
+                    if ONLINE_MODE: self.sock.send(send_message.encode('utf-8'))
+                    time.sleep(0.01)
+
+    def disableTrack(self):
+        self.track = False
+
+    def enableTrack(self):
+        self.track = True
+
+    def setSpeed(self, speed):
+        self.liner_speed = speed
+
+    def analyze_json(self):
+        global PATH_CLEAR
+        ret = True
+        if not PATH_CLEAR or not self.track:
+            cmd_string = {"CTRL": {"FWD": 0, "RGT": 0, "TRN": 0}}
+            ret = False
+        else:
+            cmd_string = {"CTRL": {"FWD": self.liner_speed, "RGT": 0, "TRN": self.angle_pid}}
+        send_message = to_json(cmd_string)
+        return send_message, ret
+
+
+
+
+# ----------------------------------------------------RoadFollow End Here------------------------------------------------- #
 
 # ----------------------------------------------------AutoDrive Start Here--------------------------------------------- #
 class Window_ad(QWidget):
@@ -560,7 +871,7 @@ class Window_ad(QWidget):
         self.mainWindow = mainWindow
         self.cmd_thread = AnalyzeCommand()
         self.update_thread = UpdateData()
-        self.video_thread = VideoThread(ROV_CAMERA_IP_ADDR)
+        self.video_thread = VideoThread_ad(ROV_CAMERA_IP_ADDR)
         self.track_thread = TrackThread()
         self.cam_show_flag = True
         self.track_mode = False
@@ -575,6 +886,9 @@ class Window_ad(QWidget):
         self.data_table = self.get_data_table()
 
         # camera_layout = QtWidgets.QVBoxLayout()
+        self.setGeometry(300, 300, 300, 200)
+        self.setFixedWidth(900)
+        self.setFixedHeight(481)
 
         self.label_show_camera = QtWidgets.QLabel()
         self.label_show_camera.setMinimumSize(641, 481)
@@ -799,6 +1113,138 @@ class Window_ad(QWidget):
 
             self.button_connect_robot.setText(u'Connect Robot')
             self.connected = False
+
+
+class VideoThread_ad(ThreadTemplate):
+    frame_data = pyqtSignal(np.ndarray)
+
+    def __init__(self, camera_address):
+        super().__init__()
+        self.frame = np.zeros([480, 640])
+        self.cam_timer = QtCore.QTimer()
+        self.cam_timer.timeout.connect(self.push_img)
+        self.camera_address = camera_address
+        self.auto_drive = False
+        self.detector = None
+        self.initialize_detector()
+
+    def run(self):
+        if self.sock:
+            self.cam_num = self.camera_address
+        else:
+            self.cam_num = 0
+        # self.cap = cv2.VideoCapture(self.cam_num)
+        self.cap = WebcamVideoStream(self.cam_num).start()
+        if Debug_video: print('LCH: Video thread begin...')
+        while self.working:
+            img = self.cap.read()
+            # ret, img = self.cap.read()
+            # if ret:
+            # if img is not None:
+            if self.auto_drive and self.detector:
+                img = self.detect_sign(img)
+
+            img = cv2.resize(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), (640, 480))
+            if Debug_video: print('LCH: img processed...')
+            # self.frame = cv2.resize(cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB), (640, 480))
+            self.frame = img.copy()
+            time.sleep(0.002)
+
+    def push_img(self):
+        if Debug_video: print('LCH: push_img begin...')
+        self.frame_data.emit(self.frame)
+        if Debug_video: print('LCH: push_img done.')
+
+    def init_cmt_tracking(self):
+        (tl, br) = self.get_rect()
+        return tl, br
+
+    def get_rect(self, title='get_rect'):
+        im = cv2.cvtColor(self.frame, cv2.COLOR_RGB2BGR)
+        mouse_params = {'tl': None, 'br': None, 'current_pos': None,
+                'released_once': False}
+
+        cv2.namedWindow(title)
+        cv2.moveWindow(title, 100, 100)
+
+        def onMouse(event, x, y, flags, param):
+
+                param['current_pos'] = (x, y)
+
+                if param['tl'] is not None and not (flags & cv2.EVENT_FLAG_LBUTTON):
+                        param['released_once'] = True
+
+                if flags & cv2.EVENT_FLAG_LBUTTON:
+                        if param['tl'] is None:
+                                param['tl'] = param['current_pos']
+                        elif param['released_once']:
+                                param['br'] = param['current_pos']
+
+        cv2.setMouseCallback(title, onMouse, mouse_params)
+        cv2.imshow(title, im)
+
+        while mouse_params['br'] is None:
+                im_draw = np.copy(im)
+
+                if mouse_params['tl'] is not None:
+                        cv2.rectangle(im_draw, mouse_params['tl'],
+                                mouse_params['current_pos'], (255, 0, 0))
+
+                cv2.imshow(title, im_draw)
+                _ = cv2.waitKey(10)
+
+        cv2.destroyWindow(title)
+
+        tl = (min(mouse_params['tl'][0], mouse_params['br'][0]),
+                min(mouse_params['tl'][1], mouse_params['br'][1]))
+        br = (max(mouse_params['tl'][0], mouse_params['br'][0]),
+                max(mouse_params['tl'][1], mouse_params['br'][1]))
+
+        return (tl, br)
+
+    def initialize_detector(self):
+        print('Inilizating Detector!!!')
+        self.detector = SignDetector("signDetection_shufflenet_v2_0_5_best_weights.pth", with_gpu=True)
+
+    def detect_sign(self, img):  # expect img to be 1920 * 1080
+        global PATH_CLEAR
+
+        print('LCH: Detect Sign Called')
+
+        img_rows, img_cols, _ = img.shape
+        imgs, rects = self.detect_region(img.copy(), img_rows//2-320, img_cols//2, 320, 240)
+        results, preds = self.detector.detect(imgs)
+        # print("Result is {0}, with time consumption {1:.2f} seconds.".format(results, toc-tic))
+        for i in range(len(preds)):
+            if preds[i]:
+                if results[i] == 'red' or results[i] == 'left_turn':
+                    color = (0, 0, 255)
+                else:
+                    color = (0, 255, 255)
+                cv2.rectangle(img, rects[i][0], rects[i][1], color, thickness=2)
+                # cv2.putText(img, results[i], (rects[i][0][0] + 20, rects[i][0][1] - 20), 1, 2, (255, 0, 255), 2)
+            else:
+                cv2.rectangle(img, rects[i][0], rects[i][1], (255, 0, 0), thickness=2)
+
+        if 'red' in results or 'left_turn' in results:
+            PATH_CLEAR = False
+        else:
+            PATH_CLEAR = True
+
+        return img
+
+    def detect_region(self, frame:np.ndarray, center_row:int, center_col:int, row_nums:int, col_nums:int):
+        imgs = []
+        rects = []
+
+        imgs.append(frame[center_row-row_nums//2:center_row+row_nums//2, center_col-col_nums//2:center_col+col_nums//2])
+        rects.append(((center_col-col_nums//2, center_row-row_nums//2), (center_col+col_nums//2, center_row+row_nums//2)))
+
+        center_col -= col_nums
+        imgs.append(frame[center_row-row_nums//2:center_row+row_nums//2, center_col-col_nums//2:center_col+col_nums//2])
+        rects.append(((center_col-col_nums//2, center_row-row_nums//2), (center_col+col_nums//2, center_row+row_nums//2)))
+
+        return imgs, rects
 
 # ------------------------------------------------------AutoDrive End Here---------------------------------------------- #
 
@@ -1143,9 +1589,6 @@ class VideoThread(ThreadTemplate):
         self.cam_timer = QtCore.QTimer()
         self.cam_timer.timeout.connect(self.push_img)
         self.camera_address = camera_address
-        self.auto_drive = False
-        self.detector = None
-        self.initialize_detector()
 
     def run(self):
         if self.sock:
@@ -1157,17 +1600,14 @@ class VideoThread(ThreadTemplate):
         if Debug_video: print('LCH: Video thread begin...')
         while self.working:
             img = self.cap.read()
-            # ret, img = self.cap.read()
-            # if ret:
-            # if img is not None:
-            if self.auto_drive and self.detector:
-                img = self.detect_sign(img)
-
             img = cv2.resize(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), (640, 480))
             if Debug_video: print('LCH: img processed...')
             # self.frame = cv2.resize(cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB), (640, 480))
             self.frame = img.copy()
-            time.sleep(0.002)
+            time.sleep(0.01)
+
+    def get_frame(self):
+        return self.frame
 
     def push_img(self):
         if Debug_video: print('LCH: push_img begin...')
@@ -1220,50 +1660,6 @@ class VideoThread(ThreadTemplate):
                 max(mouse_params['tl'][1], mouse_params['br'][1]))
 
         return (tl, br)
-
-    def initialize_detector(self):
-        print('Inilizating Detector!!!')
-        self.detector = SignDetector("shufflenet_v2_0_5_best_weights.pth", with_gpu=True)
-
-    def detect_sign(self, img):  # expect img to be 1920 * 1080
-        global PATH_CLEAR
-
-        print('LCH: Detect Sign Called')
-
-        img_rows, img_cols, _ = img.shape
-        imgs, rects = self.detect_region(img.copy(), img_rows//2-320, img_cols//2, 320, 240)
-        results, preds = self.detector.detect(imgs)
-        # print("Result is {0}, with time consumption {1:.2f} seconds.".format(results, toc-tic))
-        for i in range(len(preds)):
-            if preds[i]:
-                if results[i] == 'red' or results[i] == 'left_turn':
-                    color = (0, 0, 255)
-                else:
-                    color = (0, 255, 255)
-                cv2.rectangle(img, rects[i][0], rects[i][1], color, thickness=2)
-                # cv2.putText(img, results[i], (rects[i][0][0] + 20, rects[i][0][1] - 20), 1, 2, (255, 0, 255), 2)
-            else:
-                cv2.rectangle(img, rects[i][0], rects[i][1], (255, 0, 0), thickness=2)
-
-        if 'red' in results or 'left_turn' in results:
-            PATH_CLEAR = False
-        else:
-            PATH_CLEAR = True
-
-        return img
-
-    def detect_region(self, frame:np.ndarray, center_row:int, center_col:int, row_nums:int, col_nums:int):
-        imgs = []
-        rects = []
-
-        imgs.append(frame[center_row-row_nums//2:center_row+row_nums//2, center_col-col_nums//2:center_col+col_nums//2])
-        rects.append(((center_col-col_nums//2, center_row-row_nums//2), (center_col+col_nums//2, center_row+row_nums//2)))
-
-        center_col -= col_nums
-        imgs.append(frame[center_row-row_nums//2:center_row+row_nums//2, center_col-col_nums//2:center_col+col_nums//2])
-        rects.append(((center_col-col_nums//2, center_row-row_nums//2), (center_col+col_nums//2, center_row+row_nums//2)))
-
-        return imgs, rects
 
 # --------------------------------------------------------COMMON End Here------------------------------------------------- #
 
