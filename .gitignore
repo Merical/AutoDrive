@@ -12,3 +12,5 @@
 /RoadFollowing/dataset_xy_224_2020-1-5.zip
 /RoadFollowing/road_following_dataset_xy_2019-12-08_23-23-12.zip
 /SignDetection/logs/
+/SignDetection/scripts/best_weights.pth
+/SignDetection/scripts/output.avi
