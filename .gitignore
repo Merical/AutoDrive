@@ -14,3 +14,4 @@
 /SignDetection/logs/
 /SignDetection/scripts/best_weights.pth
 /SignDetection/scripts/output.avi
+/SignDetection/SignDetectionDataset.zip
